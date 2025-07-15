@@ -16,7 +16,7 @@ WELCOME_CHANNEL_ID = int(os.getenv("WELCOME_CHANNEL_ID"))
 # ------------------------ CONFIG SECTION ------------------------
 
 BACKGROUND_PATH = "./assets/OG_Welcome.png"
-FONT_PATH = "./assets/arial.ttf"  # Make sure this exists or use fallback below
+FONT_PATH = "./assets/arial.ttf"  # Upload to /assets/ or use Google font
 
 AVATAR_SIZE = (170, 170)
 AVATAR_POSITION = (836, 798)
@@ -45,10 +45,10 @@ async def on_ready():
 @bot.event
 async def on_member_join(member):
     await send_welcome_image(member, bot.get_channel(WELCOME_CHANNEL_ID))
-    @bot.event
+
+@bot.event
 async def on_member_remove(member):
     await send_leave_message(member, bot.get_channel(LEAVING_CHANNEL_ID))
-
 
 @bot.command(name="testwelcome")
 async def test_welcome(ctx):
@@ -79,7 +79,7 @@ async def send_welcome_image(member, channel):
     bg = Image.open(BACKGROUND_PATH).convert("RGBA")
     bg.paste(avatar, AVATAR_POSITION, avatar)
 
-    # Add username text
+    # Add text
     draw = ImageDraw.Draw(bg)
     try:
         username_font = ImageFont.truetype(FONT_PATH, USERNAME_FONT_SIZE)
@@ -89,17 +89,15 @@ async def send_welcome_image(member, channel):
         username_font = ImageFont.load_default()
         text_font = ImageFont.load_default()
 
-
-
     draw.text(USERNAME_POSITION, member.name.upper(), font=username_font, fill=USERNAME_COLOR)
     draw.text(TEXT_POSITION, TEXT_BELOW_USERNAME, font=text_font, fill=TEXT_COLOR)
 
-    # Save image to memory buffer
+    # Save image to buffer
     buffer = BytesIO()
     bg.save(buffer, format="PNG")
     buffer.seek(0)
 
-    # Create file & embed
+    # Create embed
     file = discord.File(fp=buffer, filename="welcome.png")
     embed = discord.Embed(
         title=f"👋 Welcome to Only Gamers, {member.name}!",
@@ -108,17 +106,12 @@ async def send_welcome_image(member, channel):
     )
     embed.set_image(url="attachment://welcome.png")
     embed.set_footer(text="Only Gamers • Respect. Play. Repeat.")
-
-    # 📅 Join Time
     embed.add_field(name="📅 Joined", value=f"<t:{int(member.joined_at.timestamp())}:R>", inline=True)
+    embed.add_field(name="🔢 You are member", value=str(member.guild.member_count), inline=True)
 
-    # 👥 Member Count
-    member_number = member.guild.member_count
-    embed.add_field(name="🔢 You are member", value=str(member_number), inline=True)
-
-    # Send embed with image and mention
     await channel.send(content=member.mention, file=file, embed=embed)
 
+# ------------------------ LEAVE MESSAGE GENERATOR ------------------------
 
 async def send_leave_message(member, channel):
     embed = discord.Embed(
@@ -128,12 +121,9 @@ async def send_leave_message(member, channel):
     )
     embed.set_footer(text="Only Gamers • Respect. Play. Repeat.")
     embed.add_field(name="📅 Left", value=f"<t:{int(discord.utils.utcnow().timestamp())}:R>", inline=True)
-
-    member_number = member.guild.member_count
-    embed.add_field(name="👥 Members Remaining", value=str(member_number), inline=True)
+    embed.add_field(name="👥 Members Remaining", value=str(member.guild.member_count), inline=True)
 
     await channel.send(embed=embed)
-
 
 # ------------------------ RUN BOT ------------------------
 keep_alive()
