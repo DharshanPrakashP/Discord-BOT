@@ -45,11 +45,20 @@ async def on_ready():
 @bot.event
 async def on_member_join(member):
     await send_welcome_image(member, bot.get_channel(WELCOME_CHANNEL_ID))
+    @bot.event
+async def on_member_remove(member):
+    await send_leave_message(member, bot.get_channel(LEAVING_CHANNEL_ID))
+
 
 @bot.command(name="testwelcome")
 async def test_welcome(ctx):
     """Test the welcome image using your avatar."""
     await send_welcome_image(ctx.author, ctx.channel)
+
+@bot.command(name="testleave")
+async def test_leave(ctx):
+    """Simulates a member leaving for testing."""
+    await send_leave_message(ctx.author, ctx.channel)
 
 # ------------------------ WELCOME IMAGE GENERATOR ------------------------
 
@@ -80,6 +89,8 @@ async def send_welcome_image(member, channel):
         username_font = ImageFont.load_default()
         text_font = ImageFont.load_default()
 
+
+
     draw.text(USERNAME_POSITION, member.name.upper(), font=username_font, fill=USERNAME_COLOR)
     draw.text(TEXT_POSITION, TEXT_BELOW_USERNAME, font=text_font, fill=TEXT_COLOR)
 
@@ -107,6 +118,22 @@ async def send_welcome_image(member, channel):
 
     # Send embed with image and mention
     await channel.send(content=member.mention, file=file, embed=embed)
+
+
+async def send_leave_message(member, channel):
+    embed = discord.Embed(
+        title=f"👋 {member.name} just left Only Gamers.",
+        description="😢 Another warrior has logged off...",
+        color=discord.Color.red()
+    )
+    embed.set_footer(text="Only Gamers • Respect. Play. Repeat.")
+    embed.add_field(name="📅 Left", value=f"<t:{int(discord.utils.utcnow().timestamp())}:R>", inline=True)
+
+    member_number = member.guild.member_count
+    embed.add_field(name="👥 Members Remaining", value=str(member_number), inline=True)
+
+    await channel.send(embed=embed)
+
 
 # ------------------------ RUN BOT ------------------------
 keep_alive()
