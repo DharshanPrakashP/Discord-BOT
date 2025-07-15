@@ -6,7 +6,7 @@ from io import BytesIO
 import requests
 from dotenv import load_dotenv
 import os
-
+from keep_alive import keep_alive
 # ------------------------ LOAD ENV ------------------------
 load_dotenv()
 
@@ -102,5 +102,5 @@ async def send_welcome_image(member, channel):
     await channel.send(content=member.mention, file=file, embed=embed)
 
 # ------------------------ RUN BOT ------------------------
-
+keep_alive()
 bot.run(TOKEN)
