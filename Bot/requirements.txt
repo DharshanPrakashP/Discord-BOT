@@ -1,4 +1,5 @@
 discord.py
+flask
 Pillow
 requests
 python-dotenv
