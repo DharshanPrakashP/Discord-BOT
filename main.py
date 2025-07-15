@@ -27,7 +27,7 @@ USERNAME_COLOR = "white"
 
 TEXT_BELOW_USERNAME = ""
 TEXT_POSITION = (130, 270)
-TEXT_FONT_SIZE = 24
+TEXT_FONT_SIZE = 38
 TEXT_COLOR = "white"
 
 # ------------------------ BOT SETUP ------------------------
