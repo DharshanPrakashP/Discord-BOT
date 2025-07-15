@@ -1,4 +1,3 @@
-from enum import member
 import discord
 from discord.ext import commands
 from PIL import Image, ImageDraw, ImageFont
@@ -7,6 +6,7 @@ import requests
 from dotenv import load_dotenv
 import os
 from keep_alive import keep_alive
+
 # ------------------------ LOAD ENV ------------------------
 load_dotenv()
 
@@ -16,7 +16,7 @@ WELCOME_CHANNEL_ID = int(os.getenv("WELCOME_CHANNEL_ID"))
 # ------------------------ CONFIG SECTION ------------------------
 
 BACKGROUND_PATH = "./assets/OG_Welcome.png"
-FONT_PATH = "./assets/arial.ttf"
+FONT_PATH = "./assets/arial.ttf"  # Make sure this exists or use fallback below
 
 AVATAR_SIZE = (170, 170)
 AVATAR_POSITION = (836, 798)
@@ -72,8 +72,14 @@ async def send_welcome_image(member, channel):
 
     # Add username text
     draw = ImageDraw.Draw(bg)
-    username_font = ImageFont.truetype(FONT_PATH, USERNAME_FONT_SIZE)
-    text_font = ImageFont.truetype(FONT_PATH, TEXT_FONT_SIZE)
+    try:
+        username_font = ImageFont.truetype(FONT_PATH, USERNAME_FONT_SIZE)
+        text_font = ImageFont.truetype(FONT_PATH, TEXT_FONT_SIZE)
+    except Exception as e:
+        print(f"⚠️ Font load failed: {e}. Using default font.")
+        username_font = ImageFont.load_default()
+        text_font = ImageFont.load_default()
+
     draw.text(USERNAME_POSITION, member.name.upper(), font=username_font, fill=USERNAME_COLOR)
     draw.text(TEXT_POSITION, TEXT_BELOW_USERNAME, font=text_font, fill=TEXT_COLOR)
 
@@ -91,12 +97,13 @@ async def send_welcome_image(member, channel):
     )
     embed.set_image(url="attachment://welcome.png")
     embed.set_footer(text="Only Gamers • Respect. Play. Repeat.")
-    embed.add_field(name="📅 Joined", value=f"<t:{int(member.joined_at.timestamp())}:R>", inline=True)
+
+    # 📅 Join Time
     embed.add_field(name="📅 Joined", value=f"<t:{int(member.joined_at.timestamp())}:R>", inline=True)
 
-# 👥 Total Members (Join count)
+    # 👥 Member Count
     member_number = member.guild.member_count
-    embed.add_field(name="🔢 You are member ", value=str(member_number), inline=True)
+    embed.add_field(name="🔢 You are member", value=str(member_number), inline=True)
 
     # Send embed with image and mention
     await channel.send(content=member.mention, file=file, embed=embed)
