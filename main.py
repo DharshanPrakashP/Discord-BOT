@@ -1,5 +1,5 @@
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 from PIL import Image, ImageDraw, ImageFont
 from io import BytesIO
 import requests
@@ -12,25 +12,18 @@ load_dotenv()
 
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 WELCOME_CHANNEL_ID = int(os.getenv("WELCOME_CHANNEL_ID"))
-
-# ------------------------ CONFIG SECTION ------------------------
+LEAVING_CHANNEL_ID = int(os.getenv("LEAVING_CHANNEL_ID"))
 
 BACKGROUND_PATH = "./assets/OG_Welcome.png"
-FONT_PATH = "./assets/arial.ttf"  # Upload to /assets/ or use Google font
+FONT_PATH = "./assets/arial.ttf"
 
 AVATAR_SIZE = (170, 170)
 AVATAR_POSITION = (836, 798)
-
-USERNAME_POSITION = (375, 75)
-USERNAME_FONT_SIZE = 44
-USERNAME_COLOR = "white"
 
 TEXT_BELOW_USERNAME = ""
 TEXT_POSITION = (130, 270)
 TEXT_FONT_SIZE = 38
 TEXT_COLOR = "white"
-
-# ------------------------ BOT SETUP ------------------------
 
 intents = discord.Intents.default()
 intents.members = True
@@ -41,63 +34,62 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 @bot.event
 async def on_ready():
     print(f"✅ Logged in as {bot.user}")
+    await setup_server_stats()
+    refresh_stats_loop.start()
 
 @bot.event
 async def on_member_join(member):
     await send_welcome_image(member, bot.get_channel(WELCOME_CHANNEL_ID))
+    await update_server_stats(member.guild)
 
 @bot.event
 async def on_member_remove(member):
     await send_leave_message(member, bot.get_channel(LEAVING_CHANNEL_ID))
+    await update_server_stats(member.guild)
 
 @bot.command(name="testwelcome")
 async def test_welcome(ctx):
-    """Test the welcome image using your avatar."""
     await send_welcome_image(ctx.author, ctx.channel)
 
 @bot.command(name="testleave")
 async def test_leave(ctx):
-    """Simulates a member leaving for testing."""
     await send_leave_message(ctx.author, ctx.channel)
+
+@bot.command(name="refreshstats")
+@commands.has_permissions(administrator=True)
+async def manual_refresh_stats(ctx):
+    await update_server_stats(ctx.guild)
+    await ctx.send("✅ Server stats manually refreshed.")
 
 # ------------------------ WELCOME IMAGE GENERATOR ------------------------
 
 async def send_welcome_image(member, channel):
-    # Fetch avatar
     avatar_url = member.avatar.url if member.avatar else member.default_avatar.url
     response = requests.get(avatar_url)
     avatar = Image.open(BytesIO(response.content)).convert("RGBA")
     avatar = avatar.resize(AVATAR_SIZE)
 
-    # Create circular mask
     mask = Image.new("L", AVATAR_SIZE, 0)
     draw_mask = ImageDraw.Draw(mask)
     draw_mask.ellipse((0, 0, AVATAR_SIZE[0], AVATAR_SIZE[1]), fill=255)
     avatar.putalpha(mask)
 
-    # Load background and paste avatar
     bg = Image.open(BACKGROUND_PATH).convert("RGBA")
     bg.paste(avatar, AVATAR_POSITION, avatar)
 
-    # Add text
-    draw = ImageDraw.Draw(bg)
-    try:
-        username_font = ImageFont.truetype(FONT_PATH, USERNAME_FONT_SIZE)
-        text_font = ImageFont.truetype(FONT_PATH, TEXT_FONT_SIZE)
-    except Exception as e:
-        print(f"⚠️ Font load failed: {e}. Using default font.")
-        username_font = ImageFont.load_default()
-        text_font = ImageFont.load_default()
+    if TEXT_BELOW_USERNAME:
+        draw = ImageDraw.Draw(bg)
+        try:
+            text_font = ImageFont.truetype(FONT_PATH, TEXT_FONT_SIZE)
+        except Exception as e:
+            print(f"⚠️ Font load failed: {e}. Using default font.")
+            text_font = ImageFont.load_default()
+        draw.text(TEXT_POSITION, TEXT_BELOW_USERNAME, font=text_font, fill=TEXT_COLOR)
 
-    draw.text(USERNAME_POSITION, member.name.upper(), font=username_font, fill=USERNAME_COLOR)
-    draw.text(TEXT_POSITION, TEXT_BELOW_USERNAME, font=text_font, fill=TEXT_COLOR)
-
-    # Save image to buffer
     buffer = BytesIO()
     bg.save(buffer, format="PNG")
     buffer.seek(0)
 
-    # Create embed
     file = discord.File(fp=buffer, filename="welcome.png")
     embed = discord.Embed(
         title=f"👋 Welcome to Only Gamers, {member.name}!",
@@ -125,6 +117,39 @@ async def send_leave_message(member, channel):
 
     await channel.send(embed=embed)
 
+# ------------------------ SERVER STATS ------------------------
+
+async def setup_server_stats():
+    for guild in bot.guilds:
+        await update_server_stats(guild)
+
+async def update_server_stats(guild):
+    category_name = "📊 SERVER STATS 📊"
+    voice_names = {
+        "All Members": lambda g: f"All Members: {g.member_count}",
+        "Members": lambda g: f"Members: {len([m for m in g.members if not m.bot])}",
+        "Bots": lambda g: f"Bots: {len([m for m in g.members if m.bot])}"
+    }
+
+    category = discord.utils.get(guild.categories, name=category_name)
+    if not category:
+        category = await guild.create_category(category_name)
+
+    for label, name_fn in voice_names.items():
+        existing = discord.utils.get(category.channels, name__startswith=label)
+        new_name = name_fn(guild)
+
+        if not existing:
+            await guild.create_voice_channel(new_name, category=category)
+        else:
+            await existing.edit(name=new_name)
+
+@tasks.loop(minutes=5)
+async def refresh_stats_loop():
+    for guild in bot.guilds:
+        await update_server_stats(guild)
+
 # ------------------------ RUN BOT ------------------------
+
 keep_alive()
 bot.run(TOKEN)
