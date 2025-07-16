@@ -75,8 +75,11 @@ async def modpanel(interaction: discord.Interaction):
 async def on_ready():
     print(f"✅ Logged in as {bot.user}")
     await bot.tree.sync()
-    await setup_server_stats()
-    refresh_server_stats.start()
+    try:
+        await setup_server_stats()
+        refresh_server_stats.start()
+    except discord.Forbidden:
+        print("❌ Bot does not have permission to manage channels. Server stats setup skipped.")
 
 @bot.event
 async def on_member_join(member):
@@ -162,7 +165,10 @@ async def send_leave_message(member, channel):
 @tasks.loop(minutes=5)
 async def refresh_server_stats():
     for guild in bot.guilds:
-        await update_server_stats(guild)
+        try:
+            await update_server_stats(guild)
+        except discord.Forbidden:
+            print(f"❌ Missing permission to update stats in {guild.name}")
 
 async def setup_server_stats():
     for guild in bot.guilds:
