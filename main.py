@@ -31,10 +31,13 @@ intents.message_content = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
+# ------------------------ EVENTS ------------------------
+
 @bot.event
 async def on_ready():
     print(f"✅ Logged in as {bot.user}")
-    await setup_server_stats()
+    for guild in bot.guilds:
+        await setup_server_stats(guild)
     refresh_stats_loop.start()
 
 @bot.event
@@ -46,6 +49,8 @@ async def on_member_join(member):
 async def on_member_remove(member):
     await send_leave_message(member, bot.get_channel(LEAVING_CHANNEL_ID))
     await update_server_stats(member.guild)
+
+# ------------------------ COMMANDS ------------------------
 
 @bot.command(name="testwelcome")
 async def test_welcome(ctx):
@@ -119,13 +124,17 @@ async def send_leave_message(member, channel):
 
 # ------------------------ SERVER STATS ------------------------
 
-async def setup_server_stats():
-    for guild in bot.guilds:
+async def setup_server_stats(guild):
+    try:
         await update_server_stats(guild)
+    except discord.Forbidden:
+        print(f"❌ Missing permissions in {guild.name}. Grant `Manage Channels` and `View Channels`.")
+    except Exception as e:
+        print(f"⚠️ Error setting up stats in {guild.name}: {e}")
 
 async def update_server_stats(guild):
     category_name = "📊 SERVER STATS 📊"
-    voice_names = {
+    voice_configs = {
         "All Members": lambda g: f"All Members: {g.member_count}",
         "Members": lambda g: f"Members: {len([m for m in g.members if not m.bot])}",
         "Bots": lambda g: f"Bots: {len([m for m in g.members if m.bot])}"
@@ -133,21 +142,35 @@ async def update_server_stats(guild):
 
     category = discord.utils.get(guild.categories, name=category_name)
     if not category:
-        category = await guild.create_category(category_name)
+        try:
+            category = await guild.create_category(category_name)
+            print(f"✅ Created category in {guild.name}")
+        except discord.Forbidden:
+            print(f"❌ Can't create category in {guild.name}. Permission denied.")
+            return
 
-    for label, name_fn in voice_names.items():
-        existing = discord.utils.get(category.channels, name__startswith=label)
-        new_name = name_fn(guild)
+    for label, name_fn in voice_configs.items():
+        expected_name = name_fn(guild)
+        existing_channel = next((c for c in category.voice_channels if c.name.startswith(label)), None)
 
-        if not existing:
-            await guild.create_voice_channel(new_name, category=category)
-        else:
-            await existing.edit(name=new_name)
+        try:
+            if existing_channel:
+                if existing_channel.name != expected_name:
+                    await existing_channel.edit(name=expected_name)
+            else:
+                await guild.create_voice_channel(expected_name, category=category)
+        except discord.Forbidden:
+            print(f"❌ Can't manage channel '{label}' in {guild.name}. Permission denied.")
+        except Exception as e:
+            print(f"⚠️ Error with channel '{label}' in {guild.name}: {e}")
 
 @tasks.loop(minutes=5)
 async def refresh_stats_loop():
     for guild in bot.guilds:
-        await update_server_stats(guild)
+        try:
+            await update_server_stats(guild)
+        except Exception as e:
+            print(f"⚠️ Scheduled update failed for {guild.name}: {e}")
 
 # ------------------------ RUN BOT ------------------------
 
