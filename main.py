@@ -103,39 +103,54 @@ async def setup_leave(interaction: discord.Interaction):
     await interaction.response.send_message("🔧 Select the Leave Channel:", view=ChannelSetupView(interaction, "leave"), ephemeral=True)
 
 # ---------- MOD PANEL WITH TAGGING ----------
+# ---------- MOD PANEL WITH TAGGING ----------
 @bot.tree.command(name="modpanel", description="Send an announcement with tagging")
 @app_commands.describe(content="The announcement content")
 async def modpanel(interaction: discord.Interaction, content: str):
-    view = AnnouncementChannelView(interaction, content)
-    await interaction.response.send_message("📢 Select the channel to send the announcement:", view=view, ephemeral=True)
+    await interaction.response.send_message(
+        "📢 Select the channel to send the announcement:",
+        view=AnnouncementChannelView(interaction, content),
+        ephemeral=True
+    )
 
 class AnnouncementChannelSelect(ui.Select):
-    def __init__(self, ctx, content):
-        self.ctx = ctx
+    def __init__(self, interaction: discord.Interaction, content):
+        self.interaction = interaction
         self.content = content
+        guild = interaction.guild
+
         options = [
             discord.SelectOption(label=channel.name, value=str(channel.id))
-            for channel in ctx.guild.text_channels
+            for channel in guild.text_channels if channel.permissions_for(guild.me).send_messages
         ]
+
         super().__init__(placeholder="Pick a channel...", min_values=1, max_values=1, options=options)
 
     async def callback(self, interaction: discord.Interaction):
-        channel = self.ctx.guild.get_channel(int(self.values[0]))
-        if channel:
-            # Replace @everyone / @user placeholders manually if needed
-            msg = self.content.replace("@everyone", "@everyone")
-            msg = msg.replace("@here", "@here")
-            msg = msg.replace("{user}", interaction.user.mention)
+        selected_channel_id = int(self.values[0])
+        channel = self.interaction.guild.get_channel(selected_channel_id)
 
-            await channel.send(msg)
+        if not channel:
+            await interaction.response.send_message("❌ Could not find that channel.", ephemeral=True)
+            return
+
+        # Process @ replacements
+        content = self.content
+        content = content.replace("@everyone", "@everyone")
+        content = content.replace("@here", "@here")
+        content = content.replace("{user}", self.interaction.user.mention)
+
+        try:
+            await channel.send(content)
             await interaction.response.send_message(f"✅ Announcement sent to {channel.mention}", ephemeral=True)
-        else:
-            await interaction.response.send_message("❌ Could not find channel.", ephemeral=True)
+        except discord.Forbidden:
+            await interaction.response.send_message("❌ I don't have permission to send messages to that channel.", ephemeral=True)
 
 class AnnouncementChannelView(ui.View):
-    def __init__(self, ctx, content):
+    def __init__(self, interaction: discord.Interaction, content):
         super().__init__(timeout=60)
-        self.add_item(AnnouncementChannelSelect(ctx, content))
+        self.add_item(AnnouncementChannelSelect(interaction, content))
+
 
 # ---------- RUN ----------
 bot.run(TOKEN)
