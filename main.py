@@ -163,17 +163,6 @@ async def send_leave_message(member, channel):
 # ------------------------ SERVER STATS ------------------------
 
 @tasks.loop(minutes=5)
-async def refresh_server_stats():
-    for guild in bot.guilds:
-        try:
-            await update_server_stats(guild)
-        except discord.Forbidden:
-            print(f"❌ Missing permission to update stats in {guild.name}")
-
-async def setup_server_stats():
-    for guild in bot.guilds:
-        await update_server_stats(guild)
-
 async def update_server_stats(guild):
     category_name = "📊 SERVER STATS 📊"
     voice_names = {
@@ -182,18 +171,27 @@ async def update_server_stats(guild):
         "Bots": lambda g: f"Bots: {len([m for m in g.members if m.bot])}"
     }
 
+    # Create or get the category for server stats
     category = discord.utils.get(guild.categories, name=category_name)
     if not category:
         category = await guild.create_category(category_name)
 
-    for label, name_fn in voice_names.items():
-        existing = discord.utils.get(category.channels, name__startswith=label)
+    for base_name, name_fn in voice_names.items():
+        # Find channel by checking if its name starts with the base_name (e.g., "All Members")
+        existing = None
+        for channel in category.voice_channels:
+            if channel.name.startswith(base_name):
+                existing = channel
+                break
+
         new_name = name_fn(guild)
 
-        if not existing:
-            await guild.create_voice_channel(new_name, category=category)
+        if existing:
+            if existing.name != new_name:
+                await existing.edit(name=new_name)
         else:
-            await existing.edit(name=new_name)
+            await guild.create_voice_channel(new_name, category=category)
+
 
 # ------------------------ RUN BOT ------------------------
 
