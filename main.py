@@ -6,6 +6,18 @@ import requests
 import os
 from dotenv import load_dotenv
 from keep_alive import keep_alive
+import asyncio
+
+async def load_cogs():
+    await bot.load_extension("cogs.announce")
+
+async def main():
+    keep_alive()
+    async with bot:
+        await load_cogs()
+        await bot.start(TOKEN)
+
+asyncio.run(main())
 
 # ------------------------ LOAD ENV ------------------------
 load_dotenv()
