@@ -15,14 +15,33 @@ class Broadcaster(commands.Cog):
         ping="Whom to ping (e.g. @everyone, @here, or a user)"
     )
     async def announce(self, interaction: discord.Interaction, content: str, ping: str = ""):
-        await interaction.response.send_message(
-            f"{ping}\n{content}",
-            allowed_mentions=discord.AllowedMentions(everyone=True, users=True, roles=True)
-        )
+        # Check if user has administrator permissions
+        if not interaction.user.guild_permissions.administrator:
+            await interaction.response.send_message(
+                "❌ You need administrator permissions to use this command.",
+                ephemeral=True
+            )
+            return
 
-    # 🚫 REMOVE THIS FUNCTION:
-    # async def cog_load(self):
-    #     self.bot.tree.add_command(self.announce)
+        # Defer the response since we might take a moment to process
+        await interaction.response.defer()
+
+        try:
+            # Send the announcement
+            message_content = f"{ping}\n{content}" if ping else content
+            await interaction.followup.send(
+                message_content,
+                allowed_mentions=discord.AllowedMentions(everyone=True, users=True, roles=True)
+            )
+        except discord.errors.HTTPException as e:
+            await interaction.followup.send(
+                f"❌ Failed to send announcement: {str(e)}",
+                ephemeral=True
+            )
+
+    async def cog_load(self):
+        """Called when the cog is loaded"""
+        print(f"✅ Loaded {self.__class__.__name__} cog with slash commands")
 
 # ✅ Keep this
 async def setup(bot: commands.Bot):

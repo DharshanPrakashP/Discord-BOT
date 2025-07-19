@@ -35,13 +35,24 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 # ------------------------ LOAD COGS ------------------------
 async def load_cogs():
-    await bot.load_extension("cogs.announce")  # NOTE: Make sure it's spelled "anounce.py"
+    try:
+        await bot.load_extension("cogs.announce")
+        print("✅ Successfully loaded announce cog")
+    except Exception as e:
+        print(f"❌ Failed to load announce cog: {e}")
 
 # ------------------------ EVENTS ------------------------
 @bot.event
 async def on_ready():
     print(f"✅ Logged in as {bot.user}")
-    await bot.tree.sync()
+    
+    # Sync the command tree to register slash commands
+    try:
+        synced = await bot.tree.sync()
+        print(f"✅ Synced {len(synced)} slash command(s)")
+    except Exception as e:
+        print(f"❌ Failed to sync commands: {e}")
+    
     try:
         await setup_server_stats()
         refresh_server_stats.start()
@@ -160,6 +171,38 @@ async def test_leave(ctx):
 async def manual_refresh(ctx):
     await update_server_stats(ctx.guild)
     await ctx.send("✅ Server stats refreshed.")
+
+# ------------------------ SLASH COMMANDS ------------------------
+@bot.tree.command(name="botinfo", description="Show bot information and available commands")
+async def bot_info(interaction: discord.Interaction):
+    embed = discord.Embed(
+        title="🤖 Only Gamers Bot",
+        description="Welcome and server management bot for Only Gamers Discord server",
+        color=discord.Color.blue()
+    )
+    
+    embed.add_field(
+        name="📋 Available Slash Commands",
+        value="• `/announce` - Send announcements (Admin only)\n• `/botinfo` - Show this information",
+        inline=False
+    )
+    
+    embed.add_field(
+        name="🔧 Features",
+        value="• Welcome messages with custom images\n• Server member statistics\n• Leave notifications",
+        inline=False
+    )
+    
+    embed.add_field(
+        name="📊 Server Stats",
+        value=f"Total Members: {interaction.guild.member_count}",
+        inline=True
+    )
+    
+    embed.set_footer(text="Only Gamers • Respect. Play. Repeat.")
+    embed.set_thumbnail(url=bot.user.avatar.url if bot.user.avatar else None)
+    
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 # ------------------------ MAIN ENTRY ------------------------
 async def main():
