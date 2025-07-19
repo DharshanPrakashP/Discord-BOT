@@ -8,17 +8,6 @@ from dotenv import load_dotenv
 from keep_alive import keep_alive
 import asyncio
 
-async def load_cogs():
-    await bot.load_extension("cogs.announce")
-
-async def main():
-    keep_alive()
-    async with bot:
-        await load_cogs()
-        await bot.start(TOKEN)
-
-asyncio.run(main())
-
 # ------------------------ LOAD ENV ------------------------
 load_dotenv()
 
@@ -37,11 +26,16 @@ TEXT_POSITION = (130, 270)
 TEXT_FONT_SIZE = 38
 TEXT_COLOR = "white"
 
+# ------------------------ BOT SETUP ------------------------
 intents = discord.Intents.default()
 intents.members = True
 intents.message_content = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
+
+# ------------------------ LOAD COGS ------------------------
+async def load_cogs():
+    await bot.load_extension("cogs.anounce")  # NOTE: Make sure it's spelled "anounce.py"
 
 # ------------------------ EVENTS ------------------------
 @bot.event
@@ -167,6 +161,11 @@ async def manual_refresh(ctx):
     await update_server_stats(ctx.guild)
     await ctx.send("✅ Server stats refreshed.")
 
-# ------------------------ KEEP ALIVE ------------------------
-keep_alive()
-bot.run(TOKEN)
+# ------------------------ MAIN ENTRY ------------------------
+async def main():
+    keep_alive()
+    async with bot:
+        await load_cogs()
+        await bot.start(TOKEN)
+
+asyncio.run(main())
