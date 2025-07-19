@@ -35,7 +35,7 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 # ------------------------ LOAD COGS ------------------------
 async def load_cogs():
-    await bot.load_extension("cogs.anounce")  # NOTE: Make sure it's spelled "anounce.py"
+    await bot.load_extension("cogs.announce")  # NOTE: Make sure it's spelled "anounce.py"
 
 # ------------------------ EVENTS ------------------------
 @bot.event
