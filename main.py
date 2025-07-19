@@ -224,6 +224,45 @@ async def list_commands(ctx):
     else:
         await ctx.send("❌ No slash commands registered!")
 
+@bot.command(name="getinvite")
+async def get_invite_link(ctx):
+    """Get proper bot invite link with slash command support"""
+    permissions = discord.Permissions(
+        administrator=True,
+        manage_channels=True,
+        send_messages=True,
+        embed_links=True,
+        attach_files=True,
+        read_message_history=True,
+        use_slash_commands=True
+    )
+    
+    invite_url = discord.utils.oauth_url(
+        bot.user.id,
+        permissions=permissions,
+        scopes=["bot", "applications.commands"]
+    )
+    
+    embed = discord.Embed(
+        title="🔗 Bot Re-invite Link",
+        description="Use this link to re-invite the bot with slash command support",
+        color=discord.Color.orange()
+    )
+    
+    embed.add_field(
+        name="📋 Copy This Link:",
+        value=f"```{invite_url}```",
+        inline=False
+    )
+    
+    embed.add_field(
+        name="⚠️ Instructions:",
+        value="1. **Kick the bot** from this server first\n2. Click the link above\n3. Make sure **both** `bot` and `applications.commands` are selected\n4. Re-invite the bot\n5. Check bot profile - should show 'Supports slash commands'",
+        inline=False
+    )
+    
+    await ctx.send(embed=embed)
+
 # ------------------------ SLASH COMMANDS ------------------------
 @bot.tree.command(name="botinfo", description="Show bot information and available commands")
 async def bot_info(interaction: discord.Interaction):
