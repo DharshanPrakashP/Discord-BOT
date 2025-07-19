@@ -45,11 +45,27 @@ async def load_cogs():
 @bot.event
 async def on_ready():
     print(f"✅ Logged in as {bot.user}")
+    print(f"Bot ID: {bot.user.id}")
+    print(f"Connected to {len(bot.guilds)} guild(s)")
+    
+    # Load cogs first
+    await load_cogs()
+    
+    # Wait a bit for cogs to load properly
+    await asyncio.sleep(1)
     
     # Sync the command tree to register slash commands
     try:
-        synced = await bot.tree.sync()
-        print(f"✅ Synced {len(synced)} slash command(s)")
+        # First try syncing to all guilds (faster for testing)
+        for guild in bot.guilds:
+            bot.tree.copy_global_to(guild=guild)
+            synced = await bot.tree.sync(guild=guild)
+            print(f"✅ Synced {len(synced)} command(s) to guild: {guild.name}")
+        
+        # Also sync globally (takes up to 1 hour to propagate)
+        global_synced = await bot.tree.sync()
+        print(f"✅ Synced {len(global_synced)} global slash command(s)")
+        
     except Exception as e:
         print(f"❌ Failed to sync commands: {e}")
     
@@ -172,6 +188,42 @@ async def manual_refresh(ctx):
     await update_server_stats(ctx.guild)
     await ctx.send("✅ Server stats refreshed.")
 
+@bot.command(name="synccommands")
+async def sync_commands(ctx):
+    """Debug command to manually sync slash commands"""
+    if not ctx.author.guild_permissions.administrator:
+        await ctx.send("❌ You need administrator permissions to use this command.")
+        return
+    
+    try:
+        # Sync to current guild
+        bot.tree.copy_global_to(guild=ctx.guild)
+        synced = await bot.tree.sync(guild=ctx.guild)
+        await ctx.send(f"✅ Synced {len(synced)} command(s) to this guild!")
+        
+        # List the synced commands
+        commands_list = [cmd.name for cmd in synced]
+        if commands_list:
+            await ctx.send(f"📋 Commands: {', '.join(commands_list)}")
+            
+    except Exception as e:
+        await ctx.send(f"❌ Failed to sync commands: {e}")
+
+@bot.command(name="listcommands")
+async def list_commands(ctx):
+    """Debug command to list all registered commands"""
+    app_commands = bot.tree.get_commands()
+    if app_commands:
+        commands_list = [f"/{cmd.name} - {cmd.description}" for cmd in app_commands]
+        embed = discord.Embed(
+            title="📋 Registered Slash Commands",
+            description="\n".join(commands_list),
+            color=discord.Color.green()
+        )
+        await ctx.send(embed=embed)
+    else:
+        await ctx.send("❌ No slash commands registered!")
+
 # ------------------------ SLASH COMMANDS ------------------------
 @bot.tree.command(name="botinfo", description="Show bot information and available commands")
 async def bot_info(interaction: discord.Interaction):
@@ -199,8 +251,51 @@ async def bot_info(interaction: discord.Interaction):
         inline=True
     )
     
+    # Add bot permissions info
+    bot_member = interaction.guild.get_member(bot.user.id)
+    if bot_member:
+        permissions = bot_member.guild_permissions
+        embed.add_field(
+            name="🔑 Bot Permissions",
+            value=f"Admin: {permissions.administrator}\nManage Channels: {permissions.manage_channels}\nSend Messages: {permissions.send_messages}",
+            inline=True
+        )
+    
     embed.set_footer(text="Only Gamers • Respect. Play. Repeat.")
     embed.set_thumbnail(url=bot.user.avatar.url if bot.user.avatar else None)
+    
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
+@bot.tree.command(name="invite", description="Get bot invite link with proper permissions")
+async def invite_bot(interaction: discord.Interaction):
+    # Calculate required permissions
+    permissions = discord.Permissions(
+        administrator=True,  # For easier setup, you can reduce this later
+        manage_channels=True,
+        send_messages=True,
+        embed_links=True,
+        attach_files=True,
+        read_message_history=True,
+        use_slash_commands=True
+    )
+    
+    invite_url = discord.utils.oauth_url(
+        bot.user.id,
+        permissions=permissions,
+        scopes=["bot", "applications.commands"]  # Important: applications.commands for slash commands
+    )
+    
+    embed = discord.Embed(
+        title="🔗 Bot Invite Link",
+        description=f"[Click here to invite the bot]({invite_url})",
+        color=discord.Color.green()
+    )
+    
+    embed.add_field(
+        name="⚠️ Important",
+        value="Make sure to select **both** 'bot' and 'applications.commands' scopes when inviting!",
+        inline=False
+    )
     
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
@@ -208,7 +303,7 @@ async def bot_info(interaction: discord.Interaction):
 async def main():
     keep_alive()
     async with bot:
-        await load_cogs()
+        # Don't load cogs here, do it in on_ready
         await bot.start(TOKEN)
 
 asyncio.run(main())

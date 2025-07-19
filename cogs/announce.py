@@ -23,26 +23,19 @@ class Broadcaster(commands.Cog):
             )
             return
 
-        # Defer the response since we might take a moment to process
-        await interaction.response.defer()
-
         try:
             # Send the announcement
             message_content = f"{ping}\n{content}" if ping else content
-            await interaction.followup.send(
+            await interaction.response.send_message(
                 message_content,
                 allowed_mentions=discord.AllowedMentions(everyone=True, users=True, roles=True)
             )
         except discord.errors.HTTPException as e:
-            await interaction.followup.send(
+            await interaction.response.send_message(
                 f"❌ Failed to send announcement: {str(e)}",
                 ephemeral=True
             )
 
-    async def cog_load(self):
-        """Called when the cog is loaded"""
-        print(f"✅ Loaded {self.__class__.__name__} cog with slash commands")
-
-# ✅ Keep this
 async def setup(bot: commands.Bot):
     await bot.add_cog(Broadcaster(bot))
+    print("✅ Broadcaster cog loaded with announce command")
