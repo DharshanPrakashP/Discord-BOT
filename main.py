@@ -34,6 +34,9 @@ intents.moderation = True  # For timeout/ban actions
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
+# Rate limiting for server stats updates
+stats_update_cooldown = {}  # guild_id -> last_update_time
+
 # ------------------------ LOAD COGS ------------------------
 async def load_cogs():
     try:
@@ -88,17 +91,18 @@ async def on_ready():
 
 @bot.event
 async def on_member_join(member):
-    # Only send welcome message if we can find the welcome channel
+    # Only handle events for the main guild (avoid duplicate processing)
+    # Check if this is the correct guild by verifying channel exists
     welcome_channel = bot.get_channel(WELCOME_CHANNEL_ID)
-    if welcome_channel:
+    if welcome_channel and welcome_channel.guild.id == member.guild.id:
         try:
             await send_welcome_image(member, welcome_channel)
         except Exception as e:
             print(f"❌ Error sending welcome message: {e}")
     else:
-        print(f"⚠️  Welcome channel not found (ID: {WELCOME_CHANNEL_ID})")
+        print(f"⚠️  Skipping welcome for {member.name} in {member.guild.name} (not main guild)")
     
-    # Update server stats
+    # Update server stats for this specific guild
     try:
         await update_server_stats(member.guild)
     except Exception as e:
@@ -106,17 +110,18 @@ async def on_member_join(member):
 
 @bot.event
 async def on_member_remove(member):
-    # Only send leave message if we can find the leaving channel
+    # Only handle events for the main guild (avoid duplicate processing)
+    # Check if this is the correct guild by verifying channel exists
     leaving_channel = bot.get_channel(LEAVING_CHANNEL_ID)
-    if leaving_channel:
+    if leaving_channel and leaving_channel.guild.id == member.guild.id:
         try:
             await send_leave_message(member, leaving_channel)
         except Exception as e:
             print(f"❌ Error sending leave message: {e}")
     else:
-        print(f"⚠️  Leaving channel not found (ID: {LEAVING_CHANNEL_ID})")
+        print(f"⚠️  Skipping leave message for {member.name} in {member.guild.name} (not main guild)")
     
-    # Update server stats
+    # Update server stats for this specific guild
     try:
         await update_server_stats(member.guild)
     except Exception as e:
@@ -221,6 +226,17 @@ async def setup_server_stats():
             print(f"❌ Error setting up server stats in {guild.name}: {e}")
 
 async def update_server_stats(guild):
+    # Rate limiting: only update stats every 30 seconds per guild
+    import time
+    now = time.time()
+    guild_id = guild.id
+    
+    if guild_id in stats_update_cooldown:
+        if now - stats_update_cooldown[guild_id] < 30:  # 30 second cooldown
+            return  # Skip update if too recent
+    
+    stats_update_cooldown[guild_id] = now
+    
     # Check if bot has necessary permissions
     bot_member = guild.get_member(bot.user.id)
     if not bot_member or not bot_member.guild_permissions.manage_channels:
@@ -258,7 +274,7 @@ async def update_server_stats(guild):
                 for duplicate in pattern_channels[1:]:
                     try:
                         await duplicate.delete()
-                        print(f"🗑️ Deleted duplicate stats channel: {duplicate.name}")
+                        print(f"🗑️ Deleted duplicate stats channel: {duplicate.name} in {guild.name}")
                     except discord.Forbidden:
                         pass
             else:
